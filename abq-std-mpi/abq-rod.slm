@@ -1,0 +1,107 @@
+#!/bin/bash --login
+#SBATCH --job-name=abaqus_mpi
+#SBATCH --account=pawsey0010
+#SBATCH --partition=debug
+#SBATCH --nodes=1
+#SBATCH --ntasks=24
+#SBATCH --ntasks-per-node=24
+#SBATCH --time=00:20:00
+#SBATCH --exclusive
+#SBATCH --export=NONE
+
+
+# define the module environment for abaqus/2022 with the intel compilers 
+module use /software/projects/pawsey0010/setonix/modules/intel-openapi
+module use /software/projects/pawsey0010/setonix/modules
+module load compiler mpi
+module load abaqus/2022
+
+# list loaded module - sanity test
+module list 
+
+export LD_LIBRARY_PATH=/opt/cray/pe/lib64:/software/projects/pawsey0010/setonix/devel/openapi/2022.3.1/mpi/2021.7.1/libfabric/lib
+export MPICH_NO_BUFFER_ALIAS_CHECK=1
+export I_MPI_HYDRA_BOOTSTRAP=slurm
+
+# define mpi variables to use intel mpi with slurm hopefully
+#export I_MPI_PMI_LIBRARY=/opt/cray/pe/pmi/default/lib/libpmi2.so 
+
+echo submission dir $SLURM_SUBMIT_DIR
+#  Note: SLURM_JOBID is a unique number for every job.
+#  These are generic variables
+EXECUTABLE=abq2022
+SCRATCH=$MYSCRATCH/run_abaqus/$SLURM_JOBID
+RESULTS=$MYSOFTWARE/results/abaqus
+INPUT_DATA_DIR=${SLURM_SUBMIT_DIR}/.
+
+INPUT=rodimpac2d_cs
+MODE=mpi
+unset SLURM_GTIDS
+
+###############################################
+# Creates a unique directory in the SCRATCH directory for this job to run in.
+if [ ! -d $SCRATCH ]; then 
+    mkdir -p $SCRATCH 
+fi 
+echo SCRATCH is $SCRATCH
+
+###############################################
+# Creates a unique directory in your GROUP directory for the results of this job
+if [ ! -d $RESULTS ]; then 
+    mkdir -p $RESULTS 
+fi
+echo the results directory is $RESULTS
+
+################################################
+# declare the name of the output file or log file
+OUTPUT=abaqus_mpi.log
+
+#############################################
+#   Copy input files to $SCRATCH
+#   then change directory to $SCRATCH
+
+cp $INPUT_DATA_DIR/${INPUT}.inp $SCRATCH
+#cp $INPUT_DATA_DIR/*.for $SCRATCH
+cd $SCRATCH
+
+### Create ABAQUS environment file for current job, 
+#   you can set/add your own options (Python syntax)
+
+env_file=abaqus_v6.env
+cp ${SLURM_SUBMIT_DIR}/${env_file} ${SCRATCH}/${env_file}
+
+node_list=$(scontrol show hostname ${SLURM_NODELIST} | sort -u)
+
+mp_host_list="["
+for host in ${node_list}; do
+            mp_host_list="${mp_host_list}['$host', ${SLURM_NTASKS_PER_NODE}]," #SLURM_CPUS_ON_NODE}],"
+done
+
+mp_host_list=$(echo ${mp_host_list} | sed -e "s/,$/]/")
+
+echo "mp_host_list=${mp_host_list}"  >> ${env_file}
+
+export OMP_NUM_THREADS=1
+
+### for mpi runs want something like this
+#abq2020 job=syschk information=environment -verbose 3 >$OUTPUT
+abq2022 interactive -verbose 1 job=${INPUT} input=${INPUT}.inp scratch=. \
+   double=both output_precision=full mp_mode=${MODE} \
+   cpus=${SLURM_NTASKS} >>${OUTPUT}
+
+#############################################
+#    $OUTPUT file to the unique results dir
+# note this can be a copy or move  
+cp -r ${SCRATCH} ${RESULTS}
+
+cd $HOME
+
+###########################
+# Clean up $SCRATCH 
+
+rm -r $SCRATCH
+
+echo abaqus_mpi job finished at  `date`
+
+
+

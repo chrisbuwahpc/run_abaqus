@@ -1,0 +1,95 @@
+*HEADING
+ COPPER ROD IMPACT (AXISYMMETRIC)
+ SECTION CONTROLS USED (HOURGLASS=COMBINED)
+**
+**  This example simulates the high velocity impact of a copper rod
+**  onto a rigid wall.  Similar tests have been performed to determine
+**  the material constants for high-pressure equations of state, and
+**  the test is sometimes described as the Taylor bar experiment.
+**  Extremely high plastic strains develop at the crushed end of the
+**  rod, resulting in severe local mesh distortion.
+**
+*RESTART, WRITE, NUMBER INTERVAL=4
+**
+**  Generate a 10 x 36 mesh for the bar
+**
+*NODE, NSET=CORNERS
+   1, .0000, .0000
+  11, .0032, .0000
+ 397, .0000, .0324
+ 407, .0032, .0324
+*NGEN, NSET=HEAD
+   1, 11, 1
+*NGEN, NSET=TAIL
+ 397, 407, 1
+*NFILL, NSET=ROD
+ HEAD, TAIL, 36, 11
+*NSET, NSET=AXIS, GENERATE
+ 1, 397, 11
+*NSET, NSET=BODY, GENERATE
+ 12, 407, 1
+*NSET,NSET=NOUT
+397, 
+*ELEMENT, TYPE=CAX4R
+ 1, 1, 2, 13, 12
+*ELGEN, ELSET=ROD
+ 1, 10, 1, 1, 36, 11, 10
+**
+**  Representative material properties for copper
+**
+*MATERIAL, NAME=COPPER
+*ELASTIC
+ 110.E9, .3
+*PLASTIC
+ 314.E6, 
+*DENSITY
+ 8.97E3, 
+*SOLID SECTION, ELSET=ROD, MATERIAL=COPPER, CONTROL=B
+*SECTION CONTROLS, HOURGLASS=COMBINED, NAME=B
+**
+**  Zero radial displacements are imposed along the symmetry axis.
+**  To simulate the impact of the rod on a (frictionless) rigid wall,
+**  zero axial displacements are prescribed at one end of the rod,
+**  while all other nodes are subjected to an initial velocity field.
+**
+*BOUNDARY
+ HEAD, 2
+ AXIS, 1
+*INITIAL CONDITIONS, TYPE=VELOCITY
+ BODY, 2, -227.
+**
+*NSET,NSET=NOUT
+HEAD,407
+*ELSET,ELSET=EOUT,GENERATE
+1,10,1
+**
+**  Run the problem for 80 microseconds
+**
+*ELSET,ELSET=QA_TEST_EOUT
+EOUT,
+*NSET,NSET=QA_TEST_NOUT
+NOUT,
+**
+*STEP
+*DYNAMIC, EXPLICIT
+ , 80.E-6
+*FILE OUTPUT,TIMEMARKS=YES,NUM=1
+*EL FILE,ELSET=EOUT
+PEEQ,
+*NODE FILE,NSET=NOUT
+U, 
+*ENERGY FILE
+***OUTPUT,HISTORY,TIME INTERVAL=0.
+***ENERGY OUTPUT
+**DT,
+**ALLKE,
+***NODE OUTPUT,NSET=NOUT
+**U,
+*OUTPUT, FIELD, TIMEMARKS=YES, NUMBER INTERVAL=1
+*ELEMENT OUTPUT, ELSET=QA_TEST_EOUT
+PEEQ,
+*NODE OUTPUT, NSET=QA_TEST_NOUT
+U, 
+*OUTPUT,FIELD,VARIABLE=PRESELECT
+*OUTPUT,HISTORY,VARIABLE=PRESELECT,TIMEINT=8E-05
+*END STEP
